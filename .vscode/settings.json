@@ -1,3 +1,12 @@
 {
-    "python.analysis.autoImportCompletions": false
+    // Python extension settings
+    "python.defaultInterpreterPath": "/opt/anaconda3/envs/apcsa/bin/python",
+    "python.terminal.activateEnvironment": true,
+    "python.condaPath": "/opt/anaconda3/bin/conda",
+
+    // Code Runner settings
+    "code-runner.executorMap": {
+        "python": "python -u",
+    },
+    "code-runner.runInTerminal": true,
 }
