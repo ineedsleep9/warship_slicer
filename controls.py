@@ -16,7 +16,25 @@ def shift_center(vectors):
 
     return vectors - center
 
-def display_stl(path="Files/test_cone.stl", window_size=(1200, 800)):
+def draw_axes():
+    glLineWidth(1.5)
+    glBegin(GL_LINES)
+
+    glColor3f(1, 0, 0)
+    glVertex3f(-10000, 0, 0)
+    glVertex3f(10000, 0, 0)
+
+    glColor3f(0, 1, 0)
+    glVertex3f(0, 10000, 0)
+    glVertex3f(0, -10000, 0)
+
+    glColor3f(0, 0, 1)
+    glVertex3f(0, 0, 10000)
+    glVertex3f(0, 0, -10000)
+
+    glEnd()
+
+def display_stl(path="Files/Enterprise.stl", window_size=(1200, 800)):
     vectors = get_vectors(path)
 
     pygame.init()
@@ -63,24 +81,11 @@ def display_stl(path="Files/test_cone.stl", window_size=(1200, 800)):
         # glTranslatef(0, 0, 0)
         # glScalef(1.01, 1.01, 1.01)
 
-        #Draw filled triangles
-        glPolygonMode(GL_FRONT_AND_BACK, GL_FILL)
+        draw_axes()
 
-        #GL_TRIANGLES because we are drawing triangles
-        glBegin(GL_TRIANGLES)
-
-        #specify triangle color
-        glColor3f(0.0, 0.0, 0.0)
-
-        for tri in vectors:
-            for vertex in tri:
-                glVertex3fv(vertex)
-
-        glEnd()
-        
         #Draw outlines
         glPolygonMode(GL_FRONT_AND_BACK, GL_LINE)
-        glLineWidth(2)
+        glLineWidth(0.5)
 
         #GL_TRIANGLES because we are drawing triangles
         glBegin(GL_TRIANGLES)
