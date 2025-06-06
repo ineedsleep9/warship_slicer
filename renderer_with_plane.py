@@ -1,0 +1,328 @@
+import glfw
+import numpy as np
+import glm
+import moderngl
+
+from extract_file import get_vectors, get_vertex_attributes
+from utils import map_mouse_to_sphere
+
+#mouse events
+prev_mouse_x = 0.0
+prev_mouse_y = 0.0
+start_trackball = glm.vec3(0.0, 0.0, 0.0)
+
+left_click = False
+right_click = False
+
+mouse_scroll = 0.0
+zoom = 1.0
+
+#modes (model or plane)
+mode_model = True
+mode_slice = False
+
+#model positions
+model_pos = glm.vec3(0.0, 0.0, 0.0)
+model_ori = glm.quat(1.0, 0.0, 0.0, 0.0)
+#slicing
+slice_plane_pos = glm.vec3(0.0, 0.0, 0.0)
+slice_plane_eq = glm.vec4(0.0, 0.0, 0.0, 0.0)
+slice_plane_ori = glm.quat(1.0, 0.0, 0.0, 0.0)
+
+def click_callback(window, button, action, mod):
+    global left_click, right_click, start_trackball
+    if button == glfw.MOUSE_BUTTON_RIGHT:
+        if action == glfw.PRESS:
+            right_click = True
+            x, y = glfw.get_cursor_pos(window)
+            w, h = glfw.get_window_size(window)
+            start_trackball = map_mouse_to_sphere(x, y, w, h)
+        if action == glfw.RELEASE:
+            right_click = False
+    elif button == glfw.MOUSE_BUTTON_LEFT:
+        if action == glfw.PRESS:
+            left_click = True
+        if action == glfw.RELEASE:
+            left_click = False
+
+def scroll_callback(window, x_offset, y_offset):
+    global mouse_scroll
+    mouse_scroll = y_offset
+
+def key_callback(window, key, scancode, action, mod):
+    global mode_model, mode_slice
+    if key == glfw.KEY_M and action == glfw.PRESS:
+        mode_model = not mode_model
+    if key == glfw.KEY_S and action == glfw.PRESS:
+        mode_slice = not mode_slice
+
+def get_slice_plane_eq():
+    global slice_plane_pos, slice_plane_ori
+    slice_plane_norm = slice_plane_ori * glm.vec3(0,0,1)
+    d = -glm.dot(slice_plane_norm, slice_plane_pos)
+    return glm.vec4(slice_plane_norm.x, slice_plane_norm.y, slice_plane_norm.z, d)
+
+def render(path="Files/enterprise.stl"):
+    global prev_mouse_x, prev_mouse_y, start_trackball
+    global mouse_scroll, zoom
+    global left_click, right_click
+    global model_pos, model_ori
+    global mode_model, mode_slice
+    global slice_plane_pos, slice_plane_eq, slice_plane_ori
+
+    if not glfw.init():
+        raise Exception("GLFW can't be initialized")
+
+    glfw.window_hint(glfw.CONTEXT_VERSION_MAJOR, 3)
+    glfw.window_hint(glfw.CONTEXT_VERSION_MINOR, 3)
+    glfw.window_hint(glfw.OPENGL_PROFILE, glfw.OPENGL_CORE_PROFILE)
+    window = glfw.create_window(1200, 800, "ModernGL", None, None)
+
+    if not window:
+        glfw.terminate()
+        return
+
+    glfw.make_context_current(window)
+
+    ctx = moderngl.create_context()
+    ctx.enable(moderngl.DEPTH_TEST)
+
+    #just making sure the initial eqn is corrent
+    slice_plane_eq = get_slice_plane_eq()
+
+    # for blending
+    ctx.enable(moderngl.BLEND)
+    ctx.blend_func = moderngl.SRC_ALPHA, moderngl.ONE_MINUS_SRC_ALPHA
+
+    #avoids rendering inner faces of the model so it doesn't look weird
+    ctx.enable(moderngl.CULL_FACE)
+
+    ctx.clear(0.0, 0.0, 0.0, 1.0)
+
+    #mouse event stuff
+    glfw.set_mouse_button_callback(window, click_callback)
+    glfw.set_scroll_callback(window, scroll_callback)
+    glfw.set_key_callback(window, key_callback)
+
+    tri = get_vertex_attributes(path)
+    tri = np.array(tri, dtype='f4')
+
+    plane_vertices = np.array([
+        # pos
+        -20.0, -20.0, 0.0,
+         20.0, -20.0, 0.0,
+        -20.0,  20.0, 0.0,
+
+         20.0, -20.0, 0.0,
+         20.0,  20.0, 0.0,
+        -20.0,  20.0, 0.0
+    ], dtype='f4')
+
+    #shaders
+    prog = ctx.program(vertex_shader = """
+        #version 330 core
+        layout(location = 0) in vec3 position;
+        layout(location = 1) in vec3 normal;
+        out vec3 normal_out;
+        out float dist_to_plane;
+
+        uniform mat4 model;
+        uniform mat4 view;
+        uniform mat4 projection;
+        uniform vec4 slice_plane; // (A, B, C, D) in plane Ax + By + Cz + D = 0
+
+        void main() {
+            vec4 world_pos = model * vec4(position, 1.0);
+            gl_Position = projection * view * world_pos;
+            normal_out = normal;
+            
+            dist_to_plane = dot(world_pos, slice_plane);
+        }
+        """,
+        fragment_shader = """
+        #version 330 core
+        out vec4 outColor;
+        in vec3 normal_out;
+        in float dist_to_plane;
+
+        void main() {
+            float opacity = 1.0f;
+            if(dist_to_plane < 0.0) opacity = 0.2f;
+
+            outColor = vec4(0.5 + normal_out * 0.5, opacity);
+        }
+        """
+    )
+
+    vbo = ctx.buffer(tri.tobytes())
+    vao = ctx.vertex_array(
+        prog,
+        [
+            (vbo, '3f 3f', 'position', 'normal'),
+        ]
+    )
+
+    plane_prog = ctx.program(vertex_shader="""
+        #version 330 core
+        layout(location = 0) in vec3 pos;
+        
+        uniform mat4 model;
+        uniform mat4 view;
+        uniform mat4 projection;
+        
+        void main(){
+            gl_Position = projection * view * model * vec4(pos, 1.0);
+        }
+        """,
+        fragment_shader="""
+        #version 330 core
+        out vec4 outColor;
+        uniform vec4 slice_color;
+
+        void main(){
+            outColor = slice_color;
+        }
+        """)
+
+    plane_vbo = ctx.buffer(plane_vertices.tobytes())
+    plane_vao = ctx.vertex_array(
+        plane_prog,
+        [
+            (plane_vbo, '3f', 'pos'),
+        ]
+    )
+
+    # Transformation Matrices (for model)
+    model = glm.mat4(1.0)
+    view = glm.lookAt(glm.vec3(20, 20, 20), glm.vec3(0, 0, 0), glm.vec3(0, 1, 0))
+    projection = glm.perspective(glm.radians(45.0), 1200 / 800, 0.1, 100.0)
+
+    prog['view'].write(np.array(view.to_list(), dtype='f4'))
+    prog['projection'].write(np.array(projection.to_list(), dtype='f4'))
+
+    # Transformation Matrices (for model)
+    plane_model = glm.mat4(1.0)
+    plane_view = view
+    plane_projection = projection
+
+    plane_prog['view'].write(np.array(plane_view.to_list(), dtype='f4'))
+    plane_prog['projection'].write(np.array(plane_projection.to_list(), dtype='f4'))
+
+    while not glfw.window_should_close(window):
+        glfw.poll_events()
+
+        ctx.clear(0.0, 0.0, 0.0, 1.0)
+
+        mouse_x, mouse_y = glfw.get_cursor_pos(window)
+        
+        if left_click:
+            dx = (mouse_x - prev_mouse_x)/50
+            dy = (mouse_y - prev_mouse_y) /50
+
+            # inverse matrix is the same as camera matrix (i.e. view from current perspective)
+            # translate relative to camera's up & down
+            inverse_m = glm.inverse(view)
+            cam_right = glm.vec3(inverse_m[0])
+            cam_up = glm.vec3(inverse_m[1])
+
+            if mode_model:
+                model_pos += dx * cam_right
+                model_pos -= dy * cam_up
+
+            if mode_slice:
+                slice_plane_pos += dx * cam_right
+                slice_plane_pos -= dy * cam_up
+                slice_plane_eq = get_slice_plane_eq()
+
+        if right_click:
+            x, y = glfw.get_cursor_pos(window)
+            width, height = glfw.get_window_size(window)
+            current_trackball = map_mouse_to_sphere(x, y, width, height)
+
+            axis = glm.cross(start_trackball, current_trackball)
+
+            if glm.length(axis) > 0.0001: # Check for non-zero length to avoid division by zero
+                axis = glm.normalize(axis)
+            else:
+                axis = glm.vec3(0, 0, 0) # No rotation if axis is zero
+
+            angle = glm.acos(glm.dot(start_trackball, current_trackball))
+            angle *= 3      #determines rotation speed
+
+            if glm.length(axis) > 0.0001 and abs(angle) > 0.0001: # Only rotate if there's a valid axis and angle
+                # Create incremental quaternion for this frame's rotation
+                rotation_quat = glm.angleAxis(angle, axis)
+
+                if mode_model:
+                    # Accumulate the new rotation onto the existing model orientation
+                    # This order (new_quat * old_quat) applies rotations in world space.
+                    # For a "trackball" that orbits a central point, this usually feels natural.
+                    model_ori = rotation_quat * model_ori
+
+                    # Normalize the quaternion periodically to prevent floating-point drift
+                    model_ori = glm.normalize(model_ori)
+
+                if mode_slice:
+                    #do same thing for slicing plane
+                    slice_plane_ori = rotation_quat * slice_plane_ori
+                    slice_plane_ori = glm.normalize(slice_plane_ori)
+                    
+                    slice_plane_eq = get_slice_plane_eq()
+
+            start_trackball = current_trackball
+
+        model = glm.mat4(1.0)
+        plane_model = glm.mat4(1.0)
+
+        # scaling with mouse wheel
+        if mouse_scroll != 0.0:
+            if mode_model:
+                scale = 1 + mouse_scroll / 50
+                zoom *= scale
+                if zoom < 0.001:
+                    zoom = 0.001
+            mouse_scroll = 0
+
+        plane_model = glm.mat4_cast(slice_plane_ori)
+        plane_model = glm.translate(plane_model, slice_plane_pos)
+        #NO SCALING FOR SLICING PLANE
+
+        plane_prog['model'].write(np.array(plane_model.to_list(), dtype='f4'))
+        plane_prog['slice_color'].write(np.array([1.0, 1.0, 1.0, 0.1], dtype='f4'))
+
+        # bruh this polygon offset thing doesn't even work??
+        ctx.polygon_offset = -0.2, -0.25
+        ctx.disable(moderngl.CULL_FACE)
+        ctx.disable(moderngl.DEPTH_TEST)
+        ctx.depth_mask = False
+
+        plane_vao.render(moderngl.TRIANGLES)
+
+        ctx.polygon_offset = 0, 0
+
+        #translation
+        model = glm.translate(model, model_pos)
+        #rotation
+        model = model * glm.mat4_cast(model_ori) # Apply the quaternion rotation
+        #scaling
+        model = glm.scale(model, glm.vec3(zoom, zoom, zoom))
+
+        prog['model'].write(np.array(model.to_list(), dtype='f4'))
+        prog['slice_plane'].write(np.array(slice_plane_eq.to_list(), dtype='f4'))
+
+        ctx.enable(moderngl.CULL_FACE)
+        ctx.enable(moderngl.DEPTH_TEST)
+        ctx.depth_mask = True
+
+        vao.render(moderngl.TRIANGLES)
+
+        prev_mouse_x = mouse_x
+        prev_mouse_y = mouse_y
+
+        glfw.swap_buffers(window)
+
+    glfw.terminate()
+
+
+if __name__ == "__main__":
+    render()
