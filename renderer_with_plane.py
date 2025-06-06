@@ -145,11 +145,15 @@ def render(path="Files/enterprise.stl"):
         in vec3 normal_out;
         in float dist_to_plane;
 
-        void main() {
-            float opacity = 1.0f;
-            if(dist_to_plane < 0.0) opacity = 0.2f;
+        uniform float dist_tolerance;
+        uniform vec3 slice_color;
 
-            outColor = vec4(0.5 + normal_out * 0.5, opacity);
+        void main() {
+            if(abs(dist_to_plane) < dist_tolerance){
+                outColor = vec4(slice_color, 1.0);
+            } else {
+                outColor = vec4(0.5 + normal_out * 0.5, 0.5);
+            }
         }
         """
     )
@@ -199,6 +203,8 @@ def render(path="Files/enterprise.stl"):
 
     prog['view'].write(np.array(view.to_list(), dtype='f4'))
     prog['projection'].write(np.array(projection.to_list(), dtype='f4'))
+    prog['dist_tolerance'].write(np.array([0.01], dtype='f4'))
+    prog['slice_color'].write(np.array([1.0, 1.0, 1.0], dtype='f4'))
 
     # Transformation Matrices (for model)
     plane_model = glm.mat4(1.0)
@@ -253,7 +259,23 @@ def render(path="Files/enterprise.stl"):
                 # Create incremental quaternion for this frame's rotation
                 rotation_quat = glm.angleAxis(angle, axis)
 
-                if mode_model:
+                if mode_model and mode_slice:
+                    model_ori = rotation_quat * model_ori
+                    slice_plane_ori = rotation_quat * slice_plane_ori
+
+                     # 1. Temporarily shift slice_plane_pos so model_pos is the origin
+                    relative_pos = slice_plane_pos - model_pos
+                    # 2. Rotate this relative position
+                    rotated_relative_pos = rotation_quat * relative_pos
+                    # 3. Shift slice_plane_pos back relative to the new model_pos
+                    slice_plane_pos = model_pos + rotated_relative_pos
+
+                    model_ori = glm.normalize(model_ori)
+                    slice_plane_ori = glm.normalize(slice_plane_ori)
+                    
+                    slice_plane_eq = get_slice_plane_eq()
+
+                elif mode_model:
                     # Accumulate the new rotation onto the existing model orientation
                     # This order (new_quat * old_quat) applies rotations in world space.
                     # For a "trackball" that orbits a central point, this usually feels natural.
@@ -262,7 +284,7 @@ def render(path="Files/enterprise.stl"):
                     # Normalize the quaternion periodically to prevent floating-point drift
                     model_ori = glm.normalize(model_ori)
 
-                if mode_slice:
+                elif mode_slice:
                     #do same thing for slicing plane
                     slice_plane_ori = rotation_quat * slice_plane_ori
                     slice_plane_ori = glm.normalize(slice_plane_ori)
