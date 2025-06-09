@@ -305,8 +305,9 @@ def render(path="Files/enterprise.stl"):
                     zoom = 0.001
             mouse_scroll = 0
 
-        plane_model = glm.mat4_cast(slice_plane_ori)
         plane_model = glm.translate(plane_model, slice_plane_pos)
+        plane_model = plane_model * glm.mat4_cast(slice_plane_ori)
+        
         #NO SCALING FOR SLICING PLANE
 
         plane_prog['model'].write(np.array(plane_model.to_list(), dtype='f4'))
