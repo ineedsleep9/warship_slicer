@@ -5,6 +5,7 @@ import moderngl
 
 from extract_file import get_vectors, get_vertex_attributes
 from utils import map_mouse_to_sphere
+from calc_points import make_img_np
 
 #mouse events
 prev_mouse_x = 0.0
@@ -21,7 +22,7 @@ zoom = 1.0
 mode_model = True
 mode_slice = False
 
-#model positions
+#model positionsppp
 model_pos = glm.vec3(0.0, 0.0, 0.0)
 model_ori = glm.quat(1.0, 0.0, 0.0, 0.0)
 #slicing
@@ -55,6 +56,9 @@ def key_callback(window, key, scancode, action, mod):
         mode_model = not mode_model
     if key == glfw.KEY_S and action == glfw.PRESS:
         mode_slice = not mode_slice
+    if key == glfw.KEY_P and action == glfw.PRESS:
+        print("Generating cross section image...")
+        make_img_np(get_slice_plane_eq(), "Files/enterprise.stl", width=1024, height=1024)
 
 def get_slice_plane_eq():
     global slice_plane_pos, slice_plane_ori
