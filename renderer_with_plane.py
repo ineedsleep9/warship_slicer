@@ -4,8 +4,10 @@ import glm
 import moderngl
 
 from extract_file import get_vectors, get_vertex_attributes
-from utils import map_mouse_to_sphere
+from utils import map_mouse_to_sphere, transform_triangles
 from calc_points import make_img_np
+
+path = "Files/Enterprise.stl"
 
 #mouse events
 prev_mouse_x = 0.0
@@ -25,6 +27,8 @@ mode_slice = False
 #model positionsppp
 model_pos = glm.vec3(0.0, 0.0, 0.0)
 model_ori = glm.quat(1.0, 0.0, 0.0, 0.0)
+current_transformed_tris = []
+
 #slicing
 slice_plane_pos = glm.vec3(0.0, 0.0, 0.0)
 slice_plane_eq = glm.vec4(0.0, 0.0, 0.0, 0.0)
@@ -51,14 +55,14 @@ def scroll_callback(window, x_offset, y_offset):
     mouse_scroll = y_offset
 
 def key_callback(window, key, scancode, action, mod):
-    global mode_model, mode_slice
+    global mode_model, mode_slice, current_transformed_tris, slice_plane_ori
     if key == glfw.KEY_M and action == glfw.PRESS:
         mode_model = not mode_model
     if key == glfw.KEY_S and action == glfw.PRESS:
         mode_slice = not mode_slice
     if key == glfw.KEY_P and action == glfw.PRESS:
         print("Generating cross section image...")
-        make_img_np(get_slice_plane_eq(), "Files/enterprise.stl", width=1024, height=1024)
+        make_img_np(get_slice_plane_eq(), path, width=2048, height=2048)
 
 def get_slice_plane_eq():
     global slice_plane_pos, slice_plane_ori
@@ -71,7 +75,7 @@ def render(path="Files/enterprise.stl"):
     global mouse_scroll, zoom
     global left_click, right_click
     global model_pos, model_ori
-    global mode_model, mode_slice
+    global mode_model, mode_slice, current_transformed_tris
     global slice_plane_pos, slice_plane_eq, slice_plane_ori
 
     if not glfw.init():
@@ -334,6 +338,7 @@ def render(path="Files/enterprise.stl"):
         #scaling
         model = glm.scale(model, glm.vec3(zoom, zoom, zoom))
 
+        current_transformed_tris = transform_triangles(get_vectors(path=path), model)
         prog['model'].write(np.array(model.to_list(), dtype='f4'))
         prog['slice_plane'].write(np.array(slice_plane_eq.to_list(), dtype='f4'))
 
@@ -352,4 +357,5 @@ def render(path="Files/enterprise.stl"):
 
 
 if __name__ == "__main__":
-    render()
+    render(path="Files/Enterprise.stl")
+    path = "Files/Enterprise.stl"
