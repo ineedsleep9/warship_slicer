@@ -2,6 +2,7 @@ import glfw
 import numpy as np
 import glm
 import moderngl
+import cv2 as cv
 
 from extract_file import get_vectors, get_vertex_attributes
 from utils import map_mouse_to_sphere, transform_triangles
@@ -26,7 +27,7 @@ mode_slice = False
 
 #model positionsppp
 model_pos = glm.vec3(0.0, 0.0, 0.0)
-model_ori = glm.quat(1.0, 0.0, 0.0, 0.0)
+model_ori = glm.quat(1.0, 0.0, 0.0, 0.0) 
 current_transformed_tris = []
 
 #slicing
@@ -60,15 +61,13 @@ def key_callback(window, key, scancode, action, mod):
         mode_model = not mode_model
     if key == glfw.KEY_S and action == glfw.PRESS:
         mode_slice = not mode_slice
-    if key == glfw.KEY_P and action == glfw.PRESS:
-        print("Generating cross section image...")
-        make_img_np(get_slice_plane_eq(), path, width=2048, height=2048)
 
 def get_slice_plane_eq():
     global slice_plane_pos, slice_plane_ori
-    slice_plane_norm = slice_plane_ori * glm.vec3(0,0,1)
+    slice_plane_norm = slice_plane_ori * glm.vec3(0, 0, 1)
+    slice_plane_norm = glm.normalize(slice_plane_norm)
     d = -glm.dot(slice_plane_norm, slice_plane_pos)
-    return glm.vec4(slice_plane_norm.x, slice_plane_norm.y, slice_plane_norm.z, d)
+    return glm.vec4(slice_plane_norm, d)
 
 def render(path="Files/enterprise.stl"):
     global prev_mouse_x, prev_mouse_y, start_trackball
@@ -106,6 +105,8 @@ def render(path="Files/enterprise.stl"):
     ctx.enable(moderngl.CULL_FACE)
 
     ctx.clear(0.0, 0.0, 0.0, 1.0)
+
+    original_tris = get_vectors(path=path)
 
     #mouse event stuff
     glfw.set_mouse_button_callback(window, click_callback)
@@ -222,6 +223,8 @@ def render(path="Files/enterprise.stl"):
     plane_prog['view'].write(np.array(plane_view.to_list(), dtype='f4'))
     plane_prog['projection'].write(np.array(plane_projection.to_list(), dtype='f4'))
 
+    redraw = False
+    
     while not glfw.window_should_close(window):
         glfw.poll_events()
 
@@ -247,6 +250,9 @@ def render(path="Files/enterprise.stl"):
                 slice_plane_pos += dx * cam_right
                 slice_plane_pos -= dy * cam_up
                 slice_plane_eq = get_slice_plane_eq()
+
+            if mode_slice != mode_model:
+                redraw = True
 
         if right_click:
             x, y = glfw.get_cursor_pos(window)
@@ -281,7 +287,10 @@ def render(path="Files/enterprise.stl"):
                     model_ori = glm.normalize(model_ori)
                     slice_plane_ori = glm.normalize(slice_plane_ori)
                     
-                    slice_plane_eq = get_slice_plane_eq()
+                    slice_plane_norm = slice_plane_ori * glm.vec3(0, 0, 1)
+                    slice_plane_norm = glm.normalize(slice_plane_norm)
+                    d = -glm.dot(slice_plane_norm, slice_plane_pos)
+                    slice_plane_eq = glm.vec4(slice_plane_norm, d)
 
                 elif mode_model:
                     # Accumulate the new rotation onto the existing model orientation
@@ -291,6 +300,7 @@ def render(path="Files/enterprise.stl"):
 
                     # Normalize the quaternion periodically to prevent floating-point drift
                     model_ori = glm.normalize(model_ori)
+                    redraw = True
 
                 elif mode_slice:
                     #do same thing for slicing plane
@@ -298,6 +308,7 @@ def render(path="Files/enterprise.stl"):
                     slice_plane_ori = glm.normalize(slice_plane_ori)
                     
                     slice_plane_eq = get_slice_plane_eq()
+                    redraw = True
 
             start_trackball = current_trackball
 
@@ -311,11 +322,11 @@ def render(path="Files/enterprise.stl"):
                 zoom *= scale
                 if zoom < 0.001:
                     zoom = 0.001
+                # redraw = True
             mouse_scroll = 0
 
         plane_model = glm.translate(plane_model, slice_plane_pos)
         plane_model = plane_model * glm.mat4_cast(slice_plane_ori)
-        
         #NO SCALING FOR SLICING PLANE
 
         plane_prog['model'].write(np.array(plane_model.to_list(), dtype='f4'))
@@ -338,7 +349,7 @@ def render(path="Files/enterprise.stl"):
         #scaling
         model = glm.scale(model, glm.vec3(zoom, zoom, zoom))
 
-        current_transformed_tris = transform_triangles(get_vectors(path=path), model)
+        current_transformed_tris = transform_triangles(original_tris, model)
         prog['model'].write(np.array(model.to_list(), dtype='f4'))
         prog['slice_plane'].write(np.array(slice_plane_eq.to_list(), dtype='f4'))
 
@@ -347,6 +358,12 @@ def render(path="Files/enterprise.stl"):
         ctx.depth_mask = True
 
         vao.render(moderngl.TRIANGLES)
+
+        if redraw:
+            img = make_img_np(get_slice_plane_eq(), current_transformed_tris, width=1024, height=1024)
+            cv.imshow("Cross Section", img)
+            cv.waitKey(1)
+            redraw = False
 
         prev_mouse_x = mouse_x
         prev_mouse_y = mouse_y

@@ -9,9 +9,8 @@ from projections import project_point_to_plane, project_segments_to_2d, unprojec
 def round_pt(pt, dp=6):
     return tuple(round(coord, dp) for coord in pt)
 
-def get_intersection_segments(path, plane_eq):
+def get_intersection_segments(tris, plane_eq):
     EPSILON = 1e-8
-    tris = get_vectors(path)
     ans = []
 
     for tri in tris:
@@ -49,13 +48,13 @@ def get_intersection_segments(path, plane_eq):
     return ans
 
 
-def make_img_np(plane_eq, path, width = 1024, height = 1024, aspect_ratio=-1):
-    intersect_segs = get_intersection_segments(path, plane_eq)
+def make_img_np(plane_eq, tris, width = 1024, height = 1024, aspect_ratio=-1):
+    intersect_segs = get_intersection_segments(tris, plane_eq)
     intersect_segs, plane_pos, u, v = project_segments_to_2d(intersect_segs, plane_eq)
 
     if len(intersect_segs) == 0:
         print("NO INTERSECTIONS")
-        return
+        return np.ones((width, height), dtype=np.uint8)
 
     all_pts = np.array([pt for seg in intersect_segs for pt in seg])
 
@@ -107,5 +106,4 @@ def make_img_np(plane_eq, path, width = 1024, height = 1024, aspect_ratio=-1):
 
     print("number of segments printed: " + str(cnt))
 
-    cv.imshow("Cross Section", img)
-    cv.waitKey()
+    return img
