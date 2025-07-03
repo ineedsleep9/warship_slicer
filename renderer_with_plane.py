@@ -322,7 +322,7 @@ def render(path="Files/enterprise.stl", cross_section=True):
                 zoom *= scale
                 if zoom < 0.001:
                     zoom = 0.001
-                # redraw = True
+                # NO NEED TO REDRAW because model scales relative to slice_plane_pos
             mouse_scroll = 0
 
         plane_model = glm.translate(plane_model, slice_plane_pos)
@@ -342,12 +342,14 @@ def render(path="Files/enterprise.stl", cross_section=True):
 
         ctx.polygon_offset = 0, 0
 
+        #scaling relative to plane
+        model = glm.translate(glm.mat4(1.0), slice_plane_pos)
+        model = glm.scale(model, glm.vec3(zoom, zoom, zoom))
+        model = glm.translate(model, -slice_plane_pos)
         #translation
         model = glm.translate(model, model_pos)
         #rotation
         model = model * glm.mat4_cast(model_ori) # Apply the quaternion rotation
-        #scaling
-        model = glm.scale(model, glm.vec3(zoom, zoom, zoom))
 
         current_transformed_tris = transform_triangles(np.array(original, dtype='f4'), model)
         slice_plane_eq = get_slice_plane_eq()
@@ -361,43 +363,43 @@ def render(path="Files/enterprise.stl", cross_section=True):
 
         vao.render(moderngl.TRIANGLES)
 
-        if redraw:
-            #generate render of the transformed triangles
-            test_prog = ctx.program(vertex_shader="""
-                #version 330 core
+        # if redraw:
+        #     #generate render of the transformed triangles
+        #     test_prog = ctx.program(vertex_shader="""
+        #         #version 330 core
                                     
-                in vec3 vert_pos;
-                in float outline_thickness;
+        #         in vec3 vert_pos;
+        #         in float outline_thickness;
                 
-                uniform mat4 model, view, projection;
+        #         uniform mat4 model, view, projection;
                 
-                void main(){
-                    gl_Position = projection * view * model * vec4(vert_pos, 1.0);
-                }
-            """,
-            fragment_shader="""
-                #version 330 core
+        #         void main(){
+        #             gl_Position = projection * view * model * vec4(vert_pos, 1.0);
+        #         }
+        #     """,
+        #     fragment_shader="""
+        #         #version 330 core
 
-                out vec4 outColor;
+        #         out vec4 outColor;
 
-                void main(){
-                    outColor = vec4(1.0, 0.0, 0.0, 1.0);
-                }
-            """)
+        #         void main(){
+        #             outColor = vec4(1.0, 0.0, 0.0, 1.0);
+        #         }
+        #     """)
 
-            test_vbo = ctx.buffer(current_transformed_tris.tobytes())
-            test_vao = ctx.vertex_array(
-                test_prog,
-                [
-                    (test_vbo, '3f', 'vert_pos')
-                ]
-            )
+        #     test_vbo = ctx.buffer(current_transformed_tris.tobytes())
+        #     test_vao = ctx.vertex_array(
+        #         test_prog,
+        #         [
+        #             (test_vbo, '3f', 'vert_pos')
+        #         ]
+        #     )
             
-            test_prog['model'].write(np.array(glm.mat4(1.0).to_list(), dtype='f4'))
-            test_prog['view'].write(np.array(view.to_list(), dtype='f4'))
-            test_prog['projection'].write(np.array(projection.to_list(), dtype='f4'))
+        #     test_prog['model'].write(np.array(glm.mat4(1.0).to_list(), dtype='f4'))
+        #     test_prog['view'].write(np.array(view.to_list(), dtype='f4'))
+        #     test_prog['projection'].write(np.array(projection.to_list(), dtype='f4'))
 
-            test_vao.render(moderngl.TRIANGLES)
+        #     test_vao.render(moderngl.TRIANGLES)
 
         if cross_section and redraw:
             img = make_img_np(get_slice_plane_eq(), current_transformed_tris, width=1024, height=1024)
