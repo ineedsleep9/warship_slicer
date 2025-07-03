@@ -106,7 +106,7 @@ def render(path="Files/enterprise.stl", cross_section=True):
 
     ctx.clear(0.0, 0.0, 0.0, 1.0)
 
-    current_transformed_tris = get_vectors(path=path)
+    original = get_vectors(path=path)
 
     #mouse event stuff
     glfw.set_mouse_button_callback(window, click_callback)
@@ -349,7 +349,7 @@ def render(path="Files/enterprise.stl", cross_section=True):
         #scaling
         model = glm.scale(model, glm.vec3(zoom, zoom, zoom))
 
-        current_transformed_tris = transform_triangles(np.array(current_transformed_tris, dtype='f4'), model)
+        current_transformed_tris = transform_triangles(np.array(original, dtype='f4'), model)
         slice_plane_eq = get_slice_plane_eq()
 
         prog['model'].write(np.array(model.to_list(), dtype='f4'))
@@ -362,12 +362,7 @@ def render(path="Files/enterprise.stl", cross_section=True):
         vao.render(moderngl.TRIANGLES)
 
         if redraw:
-            print(f"A: {get_slice_plane_eq().x}, B: {get_slice_plane_eq().y}, C: {get_slice_plane_eq().z}, D:{get_slice_plane_eq().w}")
-            print(get_slice_plane_eq())
-
-            print(current_transformed_tris[0, 0])
-            print(f"model_pos:{model_pos}")
-
+            #generate render of the transformed triangles
             test_prog = ctx.program(vertex_shader="""
                 #version 330 core
                                     
@@ -404,9 +399,6 @@ def render(path="Files/enterprise.stl", cross_section=True):
 
             test_vao.render(moderngl.TRIANGLES)
 
-
-        # print(f"A: {get_slice_plane_eq().x}, B: {get_slice_plane_eq().y}, C: {get_slice_plane_eq().z}, D:{get_slice_plane_eq().w}")
-
         if cross_section and redraw:
             img = make_img_np(get_slice_plane_eq(), current_transformed_tris, width=1024, height=1024)
             cv.imshow("Cross Section", img)
@@ -422,5 +414,5 @@ def render(path="Files/enterprise.stl", cross_section=True):
 
 
 if __name__ == "__main__":
-    render(path="Files/test_cone.stl", cross_section=False)
-    path = "Files/test_cone.stl"
+    render(path="Files/Enterprise.stl", cross_section=True)
+    path = "Files/Enterprise.stl"

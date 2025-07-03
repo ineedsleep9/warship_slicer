@@ -32,7 +32,7 @@ def transform_triangles(triangles, model_matrix):
     ], axis=1)
 
     # Convert glm.mat4 to NumPy array
-    model_np = np.array(model_matrix.to_list(), dtype=np.float32).reshape(4, 4)
+    model_np = np.array(model_matrix.to_list(), dtype=np.float32).reshape(4, 4).T
 
     transformed_positions_h = (model_np @ positions_h.T).T
     transformed_positions = transformed_positions_h[:, :3]
