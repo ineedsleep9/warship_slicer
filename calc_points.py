@@ -70,8 +70,8 @@ def make_img_np(plane_eq, tris, width = 1024, height = 1024, aspect_ratio=-1):
     x_offset += (width - 2 * x_offset - multiple * xy_img[0])/2
     y_offset += (height - 2 * y_offset - multiple * xy_img[1])/2
 
-    print(f"min_uv: {min_uv}, max_uv: {max_uv}")
-    print(f"Bounding box size: {xy_img}")
+    # print(f"min_uv: {min_uv}, max_uv: {max_uv}")
+    # print(f"Bounding box size: {xy_img}")
 
     def uv_to_pixel(uv):
         if is_nan_point(uv):
@@ -86,7 +86,7 @@ def make_img_np(plane_eq, tris, width = 1024, height = 1024, aspect_ratio=-1):
     img = np.ones((width, height), dtype = np.uint8)
     img *= 255
 
-    print("Number of segments:" + str(len(intersect_segs)))
+    # print("Number of segments:" + str(len(intersect_segs)))
 
     cnt = 0
 
@@ -104,6 +104,6 @@ def make_img_np(plane_eq, tris, width = 1024, height = 1024, aspect_ratio=-1):
         # print(f"Segment {cnt}: {p1} -> {p2}")
 
 
-    print("number of segments printed: " + str(cnt))
+    # print("number of segments printed: " + str(cnt))
 
     return img
