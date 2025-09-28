@@ -243,12 +243,12 @@ def render(path="Files/enterprise.stl", cross_section=True):
             cam_up = glm.vec3(inverse_m[1])
 
             if mode_model:
-                model_pos += dx * cam_right
-                model_pos -= dy * cam_up
+                model_pos += dx * cam_right / zoom
+                model_pos -= dy * cam_up / zoom
 
             if mode_slice:
-                slice_plane_pos += dx * cam_right
-                slice_plane_pos -= dy * cam_up
+                slice_plane_pos += dx * cam_right / zoom
+                slice_plane_pos -= dy * cam_up / zoom
                 slice_plane_eq = get_slice_plane_eq()
 
             if mode_slice != mode_model:
@@ -416,5 +416,5 @@ def render(path="Files/enterprise.stl", cross_section=True):
 
 
 if __name__ == "__main__":
-    render(path="Files/Enterprise.stl", cross_section=True)
     path = "Files/Enterprise.stl"
+    render(path=path, cross_section=False)
